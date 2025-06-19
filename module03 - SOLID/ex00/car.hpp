@@ -48,7 +48,16 @@ class ConsoleLogger : public ILogger
         }
 };
 
-class Engine
+class IEngine
+{
+    public:
+        virtual void start() = 0;
+        virtual void stop() = 0;
+        virtual void accelerate(int speed) = 0;
+        virtual ~IEngine() {}
+};
+
+class Engine : public IEngine
 {
     public:
         Engine(ILogger& logger) : _logger(logger), _is_active(false) {
@@ -76,7 +85,16 @@ class Engine
         bool _is_active;
 };
 
-class Transmission
+class ITransmission
+{
+    public:
+        virtual void shift_gears_up() = 0;
+        virtual void shift_gears_down() = 0;
+        virtual void reverse() = 0;
+        virtual ~ITransmission() {}
+};
+
+class Transmission : public ITransmission
 {
     public:
         Transmission(ILogger& logger) : _logger(logger) {
@@ -97,7 +115,15 @@ class Transmission
         ILogger& _logger;
 };
 
-class SteeringSystem
+class ISteeringSystem
+{
+    public:
+        virtual void turn_wheel(int angle) = 0;
+        virtual void straighten_wheels() = 0;
+        virtual ~ISteeringSystem() {}
+};
+
+class SteeringSystem : public ISteeringSystem
 {
     public:
         SteeringSystem(ILogger& logger) : _logger(logger), _current_angle(0) {
@@ -121,7 +147,15 @@ class SteeringSystem
         int _current_angle;
 };
 
-class BrakingSystem
+class IBrakingSystem
+{
+    public:
+        virtual void apply_force_on_brakes(int force) = 0;
+        virtual void apply_emergency_brakes() = 0;
+        virtual ~IBrakingSystem() {}
+};
+
+class BrakingSystem : public IBrakingSystem
 {
     public:
         BrakingSystem(ILogger& logger) : _logger(logger) {
@@ -142,6 +176,15 @@ class BrakingSystem
 class Car
 {
     public:
+        Car(ILogger& logger,
+            IEngine& eng,
+            ITransmission& trans,
+            ISteeringSystem& ss,
+            IBrakingSystem& bs)
+            : _logger(logger), _engine(eng), _transmission(trans), _steering_system(ss), _braking_system(bs) {
+            _logger.log("Car initialized with all systems ready.");
+        }
+
         void start() {
             _engine.start();
         }
@@ -184,8 +227,9 @@ class Car
         }
 
     private:
-        Engine _engine;
-        Transmission _transmission;
-        SteeringSystem _steering_system;
-        BrakingSystem _braking_system;
+        ILogger& _logger;
+        IEngine& _engine;
+        ITransmission& _transmission;
+        ISteeringSystem& _steering_system;
+        IBrakingSystem& _braking_system;
 };
