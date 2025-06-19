@@ -33,57 +33,96 @@ By the duck typing philosophy, we can say that a `Car` is a collection of parts 
 
 */
 
+class ILogger
+{
+    public:
+        virtual void log(const std::string &message) = 0;
+        virtual ~ILogger() {}
+};
+
+class ConsoleLogger : public ILogger
+{
+    public:
+        void log(const std::string &message) {
+            std::cout << "Log: " << message << std::endl;
+        }
+};
+
 class Engine
 {
     public:
+        Engine(ILogger& logger) : _logger(logger) {
+            _logger.log("Engine initialized.");
+        }
+
         void start() {
-            std::cout << "Engine started." << std::endl;
+            _logger.log("Engine started.");
         }
         void stop() {
-            std::cout << "Engine stopped." << std::endl;
+            _logger.log("Engine stopped.");
         }
         void accelerate(int speed) {
-            std::cout << "Accelerating by " << speed << " km/h." << std::endl;
+            _logger.log("Accelerating to " + std::to_string(speed) + " km/h.");
         }
+    
+    private:
+        ILogger& _logger;
 };
 
 class Transmission
 {
     public:
+        Transmission(ILogger& logger) : _logger(logger) {
+            _logger.log("Transmission initialized.");
+        }
+
         void shift_gears_up() {
-            std::cout << "Shifting up to the next gear." << std::endl;
+            _logger.log("Shifting up to the next gear.");
         }
         void shift_gears_down() {
-            std::cout << "Shifting down to the previous gear." << std::endl;
+            _logger.log("Shifting down to the previous gear.");
         }
         void reverse() {
-            std::cout << "Putting the transmission in reverse gear." << std::endl;
+            _logger.log("Putting the transmission in reverse gear.");
         }
+
     private:
+        ILogger& _logger;
 };
 
 class SteeringSystem
 {
     public:
+        SteeringSystem(ILogger& logger) : _logger(logger) {
+            _logger.log("Steering system initialized.");
+        }
+
         void turn_wheel(int angle) {
-            std::cout << "Turning the wheels by " << angle << " degrees." << std::endl;
+            _logger.log("Wheel turned by " + std::to_string(angle) + " degrees.");
         }
         void straighten_wheels() {
-            std::cout << "Straightening the wheels to a straight-ahead position." << std::endl;
+            _logger.log("Wheels straightened to the straight-ahead position.");
         }
+
     private:
+        ILogger& _logger;
 };
 
 class BrakingSystem
 {
     public:
+        BrakingSystem(ILogger& logger) : _logger(logger) {
+            _logger.log("Braking system initialized.");
+        }
         void apply_force_on_brakes(int force) {
-            std::cout << "Applying " << force << " N of force to the brakes." << std::endl;
+            _logger.log("Applying " + std::to_string(force) + " force on brakes.");
         }
         void apply_emergency_brakes() {
-            std::cout << "Applying emergency brakes with maximum force!" << std::endl;
+            _logger.log("Applying emergency brakes with maximum force.");
         }
+    
     private:
+        ILogger& _logger;
 };
 
 
