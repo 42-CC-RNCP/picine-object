@@ -90,8 +90,50 @@ class BrakingSystem
 class Car
 {
     public:
-        Engine engine;
-        Transmission transmission;
-        SteeringSystem steering_system;
-        BrakingSystem braking_system;
+        void start() {
+            _engine.start();
+        }
+
+        void stop() {
+            _braking_system.apply_emergency_brakes();
+            _engine.stop();
+        }
+
+        void accelerate(int speed) {
+            _engine.accelerate(speed);
+        }
+
+        void shift_gears_up() {
+            _transmission.shift_gears_up();
+        }
+
+        void shift_gears_down() {
+            _transmission.shift_gears_down();
+        }
+
+        void reverse() {
+            _transmission.reverse();
+        }
+
+        void turn_wheel(int angle) {
+            _steering_system.turn_wheel(angle);
+        }
+
+        void straighten_wheels() {
+            _steering_system.straighten_wheels();
+        }
+
+        void apply_force_on_brakes(int force) {
+            _braking_system.apply_force_on_brakes(force);
+        }
+
+        void apply_emergency_brakes() {
+            _braking_system.apply_emergency_brakes();
+        }
+
+    private:
+        Engine _engine;
+        Transmission _transmission;
+        SteeringSystem _steering_system;
+        BrakingSystem _braking_system;
 };
