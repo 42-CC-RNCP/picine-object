@@ -51,22 +51,29 @@ class ConsoleLogger : public ILogger
 class Engine
 {
     public:
-        Engine(ILogger& logger) : _logger(logger) {
+        Engine(ILogger& logger) : _logger(logger), _is_active(false) {
             _logger.log("Engine initialized.");
         }
 
         void start() {
             _logger.log("Engine started.");
+            _is_active = true;
         }
         void stop() {
             _logger.log("Engine stopped.");
+            _is_active = false;
         }
         void accelerate(int speed) {
+            if (!_is_active) {
+                _logger.log("Cannot accelerate. Engine is not running.");
+                return;
+            }
             _logger.log("Accelerating to " + std::to_string(speed) + " km/h.");
         }
     
     private:
         ILogger& _logger;
+        bool _is_active;
 };
 
 class Transmission
@@ -93,19 +100,25 @@ class Transmission
 class SteeringSystem
 {
     public:
-        SteeringSystem(ILogger& logger) : _logger(logger) {
-            _logger.log("Steering system initialized.");
+        SteeringSystem(ILogger& logger) : _logger(logger), _current_angle(0) {
+            _logger.log("Steering system initialized with wheels straightened.");
         }
 
         void turn_wheel(int angle) {
+            if (angle < -45 || angle > 45) {
+                _logger.log("Invalid angle. Please turn the wheel between -45 and 45 degrees.");
+                return;
+            }
             _logger.log("Wheel turned by " + std::to_string(angle) + " degrees.");
         }
         void straighten_wheels() {
+            _current_angle = 0;
             _logger.log("Wheels straightened to the straight-ahead position.");
         }
 
     private:
         ILogger& _logger;
+        int _current_angle;
 };
 
 class BrakingSystem
