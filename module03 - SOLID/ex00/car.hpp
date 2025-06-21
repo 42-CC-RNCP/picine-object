@@ -91,6 +91,8 @@ class Engine : public IEngine
         bool _is_active;
 };
 
+enum Gear { P, D, R };
+
 class ITransmission
 {
     public:
@@ -99,10 +101,11 @@ class ITransmission
         virtual void reverse() = 0;
         virtual void park() = 0;
         virtual bool is_in_park() const = 0;
+        virtual Gear get_current_gear() const = 0;
+        virtual void set_current_gear(Gear gear) = 0;
         virtual ~ITransmission() {}
 };
 
-enum Gear { P, D, R };
 
 class Transmission : public ITransmission
 {
@@ -208,6 +211,8 @@ class IBrakingSystem
     public:
         virtual bool apply_force_on_brakes(int force) = 0;
         virtual void apply_emergency_brakes() = 0;
+        virtual int get_current_force() const = 0;
+        virtual bool is_braking() const = 0;
         virtual ~IBrakingSystem() {}
 };
 
@@ -246,6 +251,69 @@ class BrakingSystem : public IBrakingSystem
         int _current_force;
 };
 
+class ICarPolicy
+{
+    public:
+        virtual bool can_start(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
+        virtual bool can_stop(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
+        virtual bool can_accelerate(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
+        virtual bool can_reverse(const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
+        virtual ~ICarPolicy();
+};
+
+class DefaultCarPolicy : public ICarPolicy
+{
+    public:
+        bool can_start(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const {
+            if (engine.is_active()) {
+                return false; // Engine is already running
+            }
+            if (!transmission.is_in_park()) {
+                return false; // Transmission must be in Park gear to start
+            }
+            if (braking_system.is_braking()) {
+                return false; // Brakes must be applied before starting
+            }
+            return true; // Can start the engine
+        }
+
+        bool can_stop(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const {
+            if (!engine.is_active()) {
+                return false; // Engine must be running to stop
+            }
+            if (transmission.is_in_park()) {
+                return false; // Cannot stop if already in Park gear
+            }
+            if (!braking_system.is_braking()) {
+                return false; // Brakes must be applied before stopping
+            }
+            return true; // Can stop the engine
+        }
+
+        bool can_accelerate(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const {
+            if (!engine.is_active()) {
+                return false; // Engine must be running to accelerate
+            }
+            if (!transmission.is_in_park()) {
+                return false; // Transmission must be in Park gear to accelerate
+            }
+            if (braking_system.is_braking()) {
+                return false; // Cannot accelerate while brakes are applied
+            }
+            return true; // Can accelerate
+        }
+
+        bool can_reverse(const ITransmission& transmission, const IBrakingSystem& braking_system) const {
+            if (transmission.get_current_gear() != R) {
+                return false; // Transmission must be in Reverse gear to reverse
+            }
+            if (!braking_system.is_braking()) {
+                return false; // Brakes must be applied before reversing
+            }
+            return true; // Can reverse
+        }
+};
+
 class Car
 {
     public:
@@ -253,38 +321,35 @@ class Car
             IEngine& eng,
             ITransmission& trans,
             ISteeringSystem& ss,
-            IBrakingSystem& bs)
-            : _logger(logger), _engine(eng), _transmission(trans), _steering_system(ss), _braking_system(bs) {
-            _logger.log("Car initialized with all systems ready.");
+            IBrakingSystem& bs,
+            ICarPolicy& policy)
+            : _logger(logger), _engine(eng), _transmission(trans), _steering_system(ss), _braking_system(bs), _policy(policy) {
+            _logger.log("[Car] Initialized with all systems ready.");
         }
 
         void start() {
-            _braking_system.apply_emergency_brakes(); // Ensure brakes are applied before starting
-            if (!_transmission.is_in_park()) {
-                _logger.log("Cannot start the car. Transmission is not in Park gear.");
+            if (!_policy.can_start(_engine, _transmission, _braking_system)) {
+                _logger.log("[Car] Start rejected by policy.");
                 return;
             }
             _engine.start();
-            _logger.log("Car started, braking system holding emergency brakes.");
+            _logger.log("[Car] Started, braking system holding emergency brakes.");
         }
 
         void stop() {
-            _braking_system.apply_emergency_brakes(); // Apply emergency brakes before stopping
+            if (!_policy.can_stop(_engine, _transmission, _braking_system)) {
+                _logger.log("[Car] Stop rejected by policy.");
+                return;
+            }
             _engine.stop();
-            _transmission.park(); // Set transmission to Park gear
-            _logger.log("Car stopped and transmission set to Park.");
+            _logger.log("[Car] stopped and transmission set to Park.");
         }
 
         void accelerate(int speed) {
-            if (!_engine.is_active()) {
-                _logger.log("Cannot accelerate. Engine is not running.");
+            if (!_policy.can_accelerate(_engine, _transmission, _braking_system)) {
+                _logger.log("[Car] Acceleration rejected by policy.");
                 return;
             }
-            if (!_transmission.is_in_park()) {
-                _logger.log("Cannot accelerate. Transmission is not in Park gear.");
-                return;
-            }
-            _braking_system.apply_force_on_brakes(0); // Release brakes before accelerating
             _engine.accelerate(speed);
         }
 
@@ -323,4 +388,5 @@ class Car
         ITransmission& _transmission;
         ISteeringSystem& _steering_system;
         IBrakingSystem& _braking_system;
+        ICarPolicy& _policy;
 };
