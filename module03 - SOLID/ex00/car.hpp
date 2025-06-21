@@ -1,5 +1,6 @@
 #pragma once
 #include <iostream>
+#include <sys/resource.h>
 
 // start(): starts the engine
 // stop(): stops the engine and applies the brakes
@@ -54,6 +55,7 @@ class IEngine
         virtual void start() = 0;
         virtual void stop() = 0;
         virtual void accelerate(int speed) = 0;
+        virtual bool is_active() const = 0;
         virtual ~IEngine() {}
 };
 
@@ -95,10 +97,12 @@ class ITransmission
         virtual void shift_gears_up() = 0;
         virtual void shift_gears_down() = 0;
         virtual void reverse() = 0;
+        virtual void park() = 0;
+        virtual bool is_in_park() const = 0;
         virtual ~ITransmission() {}
 };
 
-enum Gear { P, N, D, R };
+enum Gear { P, D, R };
 
 class Transmission : public ITransmission
 {
@@ -112,40 +116,38 @@ class Transmission : public ITransmission
             if (_current_gear == P) {
                 _logger.log("Cannot shift up from Park gear.");
                 return;
-            }
-            if (_current_gear == N) {
+            } else if (_current_gear == D) {
+                _current_gear = P; // Set to Park
+            } else if (_current_gear == R) {
                 _logger.log("Shifting to Drive gear.");
                 _current_gear = D; // Set to Drive
-            } else if (_current_gear == D) {
-                _logger.log("Already in Drive gear. Cannot shift up further.");
             } else {
-                _logger.log("Already in Reverse gear. Cannot shift up further.");
+                _logger.log("Should not reach here. Invalid gear state.");
             }
         }
 
         void shift_gears_down() {
             if (_current_gear == P) {
-                _logger.log("Cannot shift down from Park gear.");
-                return;
-            }
-            if (_current_gear == N) {
-                _logger.log("Shifting to Drive gear.");
                 _current_gear = D; // Set to Drive
-            } else if (_current_gear == D) {
-                _logger.log("Shifting to Neutral gear.");
-                _current_gear = N; // Set to Neutral
+            }
+            else if (_current_gear == D) {
+                _logger.log("Shifting to Reverse gear.");
+                _current_gear = R; // Set to Reverse
+            } else if (_current_gear == R) {
+                _logger.log("Already in Reverse gear. Cannot shift down further.");
             } else {
-                _logger.log("Already in the lowest gear. Cannot shift down further.");
+                _logger.log("Should not reach here. Invalid gear state.");
             }
         }
 
         void reverse() {
-            if (_current_gear != P) {
-                _logger.log("Cannot reverse. Please shift to Park gear first.");
-                return;
-            }
             _current_gear = R; // Set to Reverse
             _logger.log("Shifting to reverse gear.");
+        }
+
+        void park() {
+            _current_gear = P; // Set to Park
+            _logger.log("Shifting to park gear.");
         }
 
         Gear get_current_gear() const {
@@ -257,16 +259,32 @@ class Car
         }
 
         void start() {
+            _braking_system.apply_emergency_brakes(); // Ensure brakes are applied before starting
+            if (!_transmission.is_in_park()) {
+                _logger.log("Cannot start the car. Transmission is not in Park gear.");
+                return;
+            }
             _engine.start();
-            _logger.log("Car started.");
+            _logger.log("Car started, braking system holding emergency brakes.");
         }
 
         void stop() {
-            _braking_system.apply_emergency_brakes();
+            _braking_system.apply_emergency_brakes(); // Apply emergency brakes before stopping
             _engine.stop();
+            _transmission.park(); // Set transmission to Park gear
+            _logger.log("Car stopped and transmission set to Park.");
         }
 
         void accelerate(int speed) {
+            if (!_engine.is_active()) {
+                _logger.log("Cannot accelerate. Engine is not running.");
+                return;
+            }
+            if (!_transmission.is_in_park()) {
+                _logger.log("Cannot accelerate. Transmission is not in Park gear.");
+                return;
+            }
+            _braking_system.apply_force_on_brakes(0); // Release brakes before accelerating
             _engine.accelerate(speed);
         }
 
@@ -279,6 +297,7 @@ class Car
         }
 
         void reverse() {
+            _braking_system.apply_emergency_brakes();
             _transmission.reverse();
         }
 
