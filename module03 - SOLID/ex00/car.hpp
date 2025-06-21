@@ -23,10 +23,10 @@ A `Car` changes if...
         - e.g. if the engine is replaced with a more powerful one, the car's acceleration and speed capabilities change
 
 which function is doing more than a car should do?
-    1. `start()`, `stop()` and `accelerate(speed)`: should belong to the engine, not the car?
-    2. `shift_gears_up()`, `shift_gears_down()`, `reverse()`: should belong to the transmission, not the car?
-    3. `turn_wheel(angle)`, `straighten_wheels()`: should belong to the steering system, not the car?
-    4. `apply_force_on_brakes(force)`, `apply_emergency_brakes()`: should belong to the braking system, not the car?
+    1. `start()`, `stop()` and `accelerate(speed)`: should belong to the engine
+    2. `shift_gears_up()`, `shift_gears_down()`, `reverse()`: should belong to the transmission
+    3. `turn_wheel(angle)`, `straighten_wheels()`: should belong to the steering system
+    4. `apply_force_on_brakes(force)`, `apply_emergency_brakes()`: should belong to the braking system
 
 By the duck typing philosophy, we can say that a `Car` is a collection of parts that can be replaced or changed without affecting the rest of the car.
     - e.g. if the engine is replaced with a more powerful one, the car's acceleration and speed capabilities change, but the car itself remains the same.
@@ -97,22 +97,69 @@ class ITransmission
 class Transmission : public ITransmission
 {
     public:
+        enum Gear { P, N, D, R };
+
         Transmission(ILogger& logger) : _logger(logger) {
-            _logger.log("Transmission initialized.");
+            _current_gear = P; // Assuming P is the initial gear (Park)
+            _logger.log("Transmission initialized in gear " + std::to_string(_current_gear) + ".");
         }
 
         void shift_gears_up() {
-            _logger.log("Shifting up to the next gear.");
+            if (_current_gear == P) {
+                _logger.log("Cannot shift up from Park gear.");
+                return;
+            }
+            if (_current_gear == N) {
+                _logger.log("Shifting to Drive gear.");
+                _current_gear = D; // Set to Drive
+            } else if (_current_gear == D) {
+                _logger.log("Already in Drive gear. Cannot shift up further.");
+            } else {
+                _logger.log("Already in Reverse gear. Cannot shift up further.");
+            }
         }
+
         void shift_gears_down() {
-            _logger.log("Shifting down to the previous gear.");
+            if (_current_gear == P) {
+                _logger.log("Cannot shift down from Park gear.");
+                return;
+            }
+            if (_current_gear == N) {
+                _logger.log("Shifting to Drive gear.");
+                _current_gear = D; // Set to Drive
+            } else if (_current_gear == D) {
+                _logger.log("Shifting to Neutral gear.");
+                _current_gear = N; // Set to Neutral
+            } else {
+                _logger.log("Already in the lowest gear. Cannot shift down further.");
+            }
         }
+
         void reverse() {
-            _logger.log("Putting the transmission in reverse gear.");
+            if (_current_gear != P) {
+                _logger.log("Cannot reverse. Please shift to Park gear first.");
+                return;
+            }
+            _current_gear = R; // Set to Reverse
+            _logger.log("Shifting to reverse gear.");
+        }
+
+        Gear get_current_gear() const {
+            return _current_gear;
+        }
+
+        void set_current_gear(Gear gear) {
+            _current_gear = gear;
+            _logger.log("Current gear set to " + std::to_string(_current_gear) + ".");
+        }
+
+        bool is_in_park() const {
+            return _current_gear == P;
         }
 
     private:
         ILogger& _logger;
+        Gear _current_gear;
 };
 
 class ISteeringSystem
@@ -172,7 +219,6 @@ class BrakingSystem : public IBrakingSystem
         ILogger& _logger;
 };
 
-
 class Car
 {
     public:
@@ -187,6 +233,7 @@ class Car
 
         void start() {
             _engine.start();
+            
         }
 
         void stop() {
