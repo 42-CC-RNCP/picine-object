@@ -79,6 +79,10 @@ class Engine : public IEngine
             }
             _logger.log("Accelerating to " + std::to_string(speed) + " km/h.");
         }
+
+        bool is_active() const {
+            return _is_active;
+        }
     
     private:
         ILogger& _logger;
@@ -94,11 +98,11 @@ class ITransmission
         virtual ~ITransmission() {}
 };
 
+enum Gear { P, N, D, R };
+
 class Transmission : public ITransmission
 {
     public:
-        enum Gear { P, N, D, R };
-
         Transmission(ILogger& logger) : _logger(logger) {
             _current_gear = P; // Assuming P is the initial gear (Park)
             _logger.log("Transmission initialized in gear " + std::to_string(_current_gear) + ".");
@@ -165,7 +169,7 @@ class Transmission : public ITransmission
 class ISteeringSystem
 {
     public:
-        virtual void turn_wheel(int angle) = 0;
+        virtual bool turn_wheel(int angle) = 0;
         virtual void straighten_wheels() = 0;
         virtual ~ISteeringSystem() {}
 };
@@ -177,12 +181,14 @@ class SteeringSystem : public ISteeringSystem
             _logger.log("Steering system initialized with wheels straightened.");
         }
 
-        void turn_wheel(int angle) {
-            if (angle < -45 || angle > 45) {
-                _logger.log("Invalid angle. Please turn the wheel between -45 and 45 degrees.");
-                return;
+        bool turn_wheel(int angle) {
+            if (angle < -MAX_TURN_ANGLE || angle > MAX_TURN_ANGLE) {
+                _logger.log("Invalid angle. Must be between " + std::to_string(-MAX_TURN_ANGLE) + " and " + std::to_string(MAX_TURN_ANGLE) + ".");
+                return false;
             }
-            _logger.log("Wheel turned by " + std::to_string(angle) + " degrees.");
+            _current_angle = angle;
+            _logger.log("Wheels turned to " + std::to_string(angle) + " degrees.");
+            return true;
         }
         void straighten_wheels() {
             _current_angle = 0;
@@ -190,6 +196,7 @@ class SteeringSystem : public ISteeringSystem
         }
 
     private:
+        static const int MAX_TURN_ANGLE = 45;
         ILogger& _logger;
         int _current_angle;
 };
@@ -197,7 +204,7 @@ class SteeringSystem : public ISteeringSystem
 class IBrakingSystem
 {
     public:
-        virtual void apply_force_on_brakes(int force) = 0;
+        virtual bool apply_force_on_brakes(int force) = 0;
         virtual void apply_emergency_brakes() = 0;
         virtual ~IBrakingSystem() {}
 };
@@ -206,17 +213,35 @@ class BrakingSystem : public IBrakingSystem
 {
     public:
         BrakingSystem(ILogger& logger) : _logger(logger) {
+            _current_force = 0;
             _logger.log("Braking system initialized.");
         }
-        void apply_force_on_brakes(int force) {
-            _logger.log("Applying " + std::to_string(force) + " force on brakes.");
+        bool apply_force_on_brakes(int force) {
+            if (force < 0 || force > MAX_BRAKE_FORCE) {
+                _logger.log("Invalid force. Must be between 0 and " + std::to_string(MAX_BRAKE_FORCE) + ".");
+                return false;
+            }
+            _current_force = force;
+            _logger.log("Brakes applied with force: " + std::to_string(force));
+            return true;
         }
         void apply_emergency_brakes() {
-            _logger.log("Applying emergency brakes with maximum force.");
+            _current_force = MAX_BRAKE_FORCE;
+            _logger.log("Emergency brakes applied with maximum force: " + std::to_string(MAX_BRAKE_FORCE));
+        }
+
+        int get_current_force() const {
+            return _current_force;
+        }
+
+        bool is_braking() const {
+            return _current_force > 0;
         }
     
     private:
         ILogger& _logger;
+        static const int MAX_BRAKE_FORCE = 100; // Example maximum force
+        int _current_force;
 };
 
 class Car
@@ -233,7 +258,7 @@ class Car
 
         void start() {
             _engine.start();
-            
+            _logger.log("Car started.");
         }
 
         void stop() {
