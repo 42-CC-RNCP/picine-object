@@ -1,0 +1,24 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "build ex00",
+        "type": "shell",
+        // run make in the sub-directory that owns the Makefile
+        "command": "make",
+        "args": ["-C", "module03 - SOLID/ex00"],
+        "group": "build",
+        "problemMatcher": ["$gcc"],          // works for clang, too
+        "presentation": { "reveal": "always" },
+        "detail": "Compile module03-ex00 with debug symbols"
+      },
+      {
+        "label": "clean ex00",
+        "type": "shell",
+        "command": "make",
+        "args": ["-C", "module03 - SOLID/ex00", "fclean"],
+        "group": "none"
+      }
+    ]
+  }
+  

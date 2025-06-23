@@ -314,7 +314,7 @@ class ICarPolicy
         virtual bool can_start(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
         virtual bool can_stop(const IEngine& engine, const ITransmission& transmission) const = 0;
         virtual bool can_accelerate(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
-        virtual bool can_reverse(const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
+        virtual bool can_reverse(const IBrakingSystem& braking_system) const = 0;
         virtual ~ICarPolicy() {}
 };
 
@@ -323,12 +323,15 @@ class DefaultCarPolicy : public ICarPolicy
     public:
         bool can_start(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const {
             if (engine.is_active()) {
+                std::cerr << "Engine is already running." << std::endl;
                 return false; // Engine is already running
             }
             if (!transmission.is_in_park()) {
+                std::cerr << "Transmission must be in Park gear to start." << std::endl;
                 return false; // Transmission must be in Park gear to start
             }
-            if (braking_system.is_braking()) {
+            if (!braking_system.is_braking()) {
+                std::cerr << "Brakes must be applied before starting." << std::endl;
                 return false; // Brakes must be applied before starting
             }
             return true; // Can start the engine
@@ -336,9 +339,11 @@ class DefaultCarPolicy : public ICarPolicy
 
         bool can_stop(const IEngine& engine, const ITransmission& transmission) const {
             if (!engine.is_active()) {
+                std::cerr << "Engine is not running." << std::endl;
                 return false; // Engine must be running to stop
             }
-            if (transmission.is_in_park()) {
+            if (!transmission.is_in_park()) {
+                std::cerr << "Transmission must be in Park gear to stop." << std::endl;
                 return false; // Cannot stop if already in Park gear
             }
             return true; // Can stop the engine
@@ -346,22 +351,23 @@ class DefaultCarPolicy : public ICarPolicy
 
         bool can_accelerate(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const {
             if (!engine.is_active()) {
+                std::cerr << "Engine must be running to accelerate." << std::endl;
                 return false; // Engine must be running to accelerate
             }
             if (transmission.is_in_park()) {
+                std::cerr << "Cannot accelerate while in Park gear." << std::endl;
                 return false; // Transmission must be in Park gear to accelerate
             }
             if (braking_system.is_braking()) {
+                std::cerr << "Cannot accelerate while brakes are applied." << std::endl;
                 return false; // Cannot accelerate while brakes are applied
             }
             return true; // Can accelerate
         }
 
-        bool can_reverse(const ITransmission& transmission, const IBrakingSystem& braking_system) const {
-            if (transmission.get_current_gear() != R) {
-                return false; // Transmission must be in Reverse gear to reverse
-            }
+        bool can_reverse(const IBrakingSystem& braking_system) const {
             if (!braking_system.is_braking()) {
+                std::cerr << "Brakes must be applied before reversing." << std::endl;
                 return false; // Brakes must be applied before reversing
             }
             return true; // Can reverse
@@ -394,11 +400,11 @@ class Car : public LoggerMixin<Car>
         }
 
         void stop() {
+            _transmission.to_park(); // Ensure transmission is in Park before stopping
             if (!_policy.can_stop(_engine, _transmission)) {
                 log("Stop rejected by policy.");
                 return;
             }
-            _braking_system.apply_emergency_brakes();
             _engine.stop();
             log("Stopped and transmission set to Park.");
         }
@@ -420,11 +426,11 @@ class Car : public LoggerMixin<Car>
         }
 
         void reverse() {
-            if (!_policy.can_reverse(_transmission, _braking_system)) {
+            _braking_system.apply_emergency_brakes();
+            if (!_policy.can_reverse(_braking_system)) {
                 log("Reverse rejected by policy.");
                 return;
             }
-            _braking_system.apply_emergency_brakes();
             _transmission.to_reverse();
         }
 

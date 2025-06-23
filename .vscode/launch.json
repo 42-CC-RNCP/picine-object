@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug ex00 (LLDB)",
+        "type": "cppdbg",
+        "request": "launch",
+        "MIMode": "lldb",                              // macOS default
+        "preLaunchTask": "build ex00",
+        "program": "${workspaceFolder}/module03 - SOLID/ex00/car",
+        "cwd": "${workspaceFolder}/module03 - SOLID/ex00",
+        "args": [],                                    // add CLI args if needed
+        "stopAtEntry": false,
+        "externalConsole": true
+      }
+    ]
+  }
+  
