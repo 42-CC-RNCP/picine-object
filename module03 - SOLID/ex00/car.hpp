@@ -33,18 +33,83 @@ By the duck typing philosophy, we can say that a `Car` is a collection of parts 
 
 */
 
+namespace ansi {
+    static const char* RESET = "\033[0m";
+    static const char* RED   = "\033[31m";
+    static const char* GREEN = "\033[32m";
+    static const char* YEL   = "\033[33m";
+    static const char* BLUE  = "\033[34m";
+    static const char* MAG   = "\033[35m";
+    static const char* CYN   = "\033[36m";
+    static const char* WHT   = "\033[37m";
+}
+
+template <typename T> struct LogColor {
+    static const char* color() {
+        return ansi::RESET; // Default color
+    }
+};
+
+template <> struct LogColor<class Engine> {
+    static const char* color() {
+        return ansi::YEL; // Yellow for Engine
+    }
+};
+
+template <> struct LogColor<class Transmission> {
+    static const char* color() {
+        return ansi::CYN; // Cyan for Transmission
+    }
+};
+
+template <> struct LogColor<class SteeringSystem> {
+    static const char* color() {
+        return ansi::GREEN; // Green for SteeringSystem
+    }
+};
+
+template <> struct LogColor<class BrakingSystem> {
+    static const char* color() {
+        return ansi::RED; // Red for BrakingSystem
+    }
+};
+
 class ILogger
 {
     public:
-        virtual void log(const std::string &message) = 0;
+        virtual void log(const std::string &message) const = 0;
         virtual ~ILogger() {}
 };
 
 class ConsoleLogger : public ILogger
 {
     public:
-        void log(const std::string &message) {
-            std::cout << "Log: " << message << std::endl;
+        void log(const std::string &message) const {
+            std::cout << message << std::endl;
+        }
+};
+
+template <typename Derived>
+class LoggerMixin : public ILogger
+{
+    public:
+        void log(const std::string& m) const {
+            if (_logger) {
+                std::string class_name = Derived::class_name;
+                std::string color = LogColor<Derived>::color();
+                _logger->log(color + class_name + ": " + m + ansi::RESET);
+            } else {
+                std::cerr << "Logger is not set!" << std::endl;
+            }
+        }
+    protected:
+        ILogger* _logger;
+
+    protected:
+        LoggerMixin(ILogger* logger) : _logger(logger) {
+            if (!_logger) {
+                throw std::runtime_error("Logger cannot be null");
+            }
         }
 };
 
@@ -58,27 +123,29 @@ class IEngine
         virtual ~IEngine() {}
 };
 
-class Engine : public IEngine
+class Engine : public IEngine, public LoggerMixin<Engine>
 {
     public:
-        Engine(ILogger& logger) : _logger(logger), _is_active(false) {
-            _logger.log("Engine initialized.");
+        static const std::string class_name;
+
+        Engine(ILogger* logger) : LoggerMixin<Engine>(logger), _is_active(false) {
+            log("Initialized.");
         }
 
         void start() {
-            _logger.log("Engine started.");
+            log("Started.");
             _is_active = true;
         }
         void stop() {
-            _logger.log("Engine stopped.");
+            log("Stopped.");
             _is_active = false;
         }
         void accelerate(int speed) {
             if (!_is_active) {
-                _logger.log("Cannot accelerate. Engine is not running.");
+                log("Cannot accelerate. Engine is not running.");
                 return;
             }
-            _logger.log("Accelerating to " + std::to_string(speed) + " km/h.");
+            log("Accelerating to " + std::to_string(speed) + " km/h.");
         }
 
         bool is_active() const {
@@ -86,9 +153,10 @@ class Engine : public IEngine
         }
     
     private:
-        ILogger& _logger;
         bool _is_active;
 };
+const std::string Engine::class_name = "Engine";
+
 
 enum Gear { P, D, R };
 
@@ -112,12 +180,13 @@ class ITransmission
 };
 
 
-class Transmission : public ITransmission
+class Transmission : public ITransmission, public LoggerMixin<Engine>
 {
     public:
-        Transmission(ILogger& logger) : _logger(logger) {
-            _current_gear = P; // Assuming P is the initial gear (Park)
-            _logger.log("Transmission initialized in gear " + gear_to_string(_current_gear) + ".");
+        static const std::string class_name;
+
+        Transmission(ILogger* logger) : LoggerMixin<Engine>(logger), _current_gear(P) {
+            log("Initialized in gear " + gear_to_string(_current_gear) + ".");
         }
 
         bool to_park() {
@@ -141,7 +210,6 @@ class Transmission : public ITransmission
         }
 
     private:
-        ILogger& _logger;
         Gear _current_gear;
     
     private:
@@ -150,10 +218,11 @@ class Transmission : public ITransmission
                 return false; // Already in the desired gear
             }
             _current_gear = gear;
-            _logger.log("Gear -> " + gear_to_string(_current_gear) + ".");
+            log("Gear -> " + gear_to_string(_current_gear) + ".");
             return true; // Can shift to the desired gear
         }
 };
+const std::string Transmission::class_name = "Transmission";
 
 class ISteeringSystem
 {
@@ -163,32 +232,34 @@ class ISteeringSystem
         virtual ~ISteeringSystem() {}
 };
 
-class SteeringSystem : public ISteeringSystem
+class SteeringSystem : public ISteeringSystem, public LoggerMixin<SteeringSystem>
 {
     public:
-        SteeringSystem(ILogger& logger) : _logger(logger), _current_angle(0) {
-            _logger.log("Steering system initialized with wheels straightened.");
+        static const std::string class_name;
+        
+        SteeringSystem(ILogger* logger) : LoggerMixin<SteeringSystem>(logger), _current_angle(0) {
+            log("system initialized with wheels straightened.");
         }
 
         bool turn_wheel(int angle) {
             if (angle < -MAX_TURN_ANGLE || angle > MAX_TURN_ANGLE) {
-                _logger.log("Invalid angle. Must be between " + std::to_string(-MAX_TURN_ANGLE) + " and " + std::to_string(MAX_TURN_ANGLE) + ".");
+                log("Invalid angle. Must be between " + std::to_string(-MAX_TURN_ANGLE) + " and " + std::to_string(MAX_TURN_ANGLE) + ".");
                 return false;
             }
             _current_angle = angle;
-            _logger.log("Wheels turned to " + std::to_string(angle) + " degrees.");
+            log("Wheels turned to " + std::to_string(angle) + " degrees.");
             return true;
         }
         void straighten_wheels() {
             _current_angle = 0;
-            _logger.log("Wheels straightened to the straight-ahead position.");
+            log("Wheels straightened to the straight-ahead position.");
         }
 
     private:
         static const int MAX_TURN_ANGLE = 45;
-        ILogger& _logger;
         int _current_angle;
 };
+const std::string SteeringSystem::class_name = "SteeringSystem";
 
 class IBrakingSystem
 {
@@ -200,25 +271,27 @@ class IBrakingSystem
         virtual ~IBrakingSystem() {}
 };
 
-class BrakingSystem : public IBrakingSystem
+class BrakingSystem : public IBrakingSystem, public LoggerMixin<BrakingSystem>
 {
     public:
-        BrakingSystem(ILogger& logger) : _logger(logger) {
+        static const std::string class_name;
+
+        BrakingSystem(ILogger* logger) : LoggerMixin<BrakingSystem>(logger){
             _current_force = 0;
-            _logger.log("Braking system initialized.");
+            log("Braking system initialized.");
         }
         bool apply_force_on_brakes(int force) {
             if (force < 0 || force > MAX_BRAKE_FORCE) {
-                _logger.log("Invalid force. Must be between 0 and " + std::to_string(MAX_BRAKE_FORCE) + ".");
+                log("Invalid force. Must be between 0 and " + std::to_string(MAX_BRAKE_FORCE) + ".");
                 return false;
             }
             _current_force = force;
-            _logger.log("Brakes applied with force: " + std::to_string(force));
+            log("Brakes applied with force: " + std::to_string(force));
             return true;
         }
         void apply_emergency_brakes() {
             _current_force = MAX_BRAKE_FORCE;
-            _logger.log("Emergency brakes applied with maximum force: " + std::to_string(MAX_BRAKE_FORCE));
+            log("Emergency brakes applied with maximum force: " + std::to_string(MAX_BRAKE_FORCE));
         }
 
         int get_current_force() const {
@@ -230,10 +303,10 @@ class BrakingSystem : public IBrakingSystem
         }
     
     private:
-        ILogger& _logger;
         static const int MAX_BRAKE_FORCE = 100; // Example maximum force
         int _current_force;
 };
+const std::string BrakingSystem::class_name = "BrakingSystem";
 
 class ICarPolicy
 {
@@ -295,42 +368,44 @@ class DefaultCarPolicy : public ICarPolicy
         }
 };
 
-class Car
+class Car : public LoggerMixin<Car>
 {
     public:
-        Car(ILogger& logger,
+        static const std::string class_name;
+
+        Car(ILogger* logger,
             IEngine& eng,
             ITransmission& trans,
             ISteeringSystem& ss,
             IBrakingSystem& bs,
             ICarPolicy& policy)
-            : _logger(logger), _engine(eng), _transmission(trans), _steering_system(ss), _braking_system(bs), _policy(policy) {
-            _logger.log("[Car] Initialized with all systems ready.");
+            : LoggerMixin<Car>(logger), _engine(eng), _transmission(trans), _steering_system(ss), _braking_system(bs), _policy(policy) {
+            log("Initialized with all systems ready.");
         }
 
         void start() {
             _braking_system.apply_emergency_brakes(); // Ensure brakes are applied before starting
             if (!_policy.can_start(_engine, _transmission, _braking_system)) {
-                _logger.log("[Car] Start rejected by policy.");
+                log("Start rejected by policy.");
                 return;
             }
             _engine.start();
-            _logger.log("[Car] Started, braking system holding emergency brakes.");
+            log("Started, braking system holding emergency brakes.");
         }
 
         void stop() {
             if (!_policy.can_stop(_engine, _transmission)) {
-                _logger.log("[Car] Stop rejected by policy.");
+                log("Stop rejected by policy.");
                 return;
             }
             _braking_system.apply_emergency_brakes();
             _engine.stop();
-            _logger.log("[Car] stopped and transmission set to Park.");
+            log("Stopped and transmission set to Park.");
         }
 
         void accelerate(int speed) {
             if (!_policy.can_accelerate(_engine, _transmission, _braking_system)) {
-                _logger.log("[Car] Acceleration rejected by policy.");
+                log("Acceleration rejected by policy.");
                 return;
             }
             _engine.accelerate(speed);
@@ -346,7 +421,7 @@ class Car
 
         void reverse() {
             if (!_policy.can_reverse(_transmission, _braking_system)) {
-                _logger.log("[Car] Reverse rejected by policy.");
+                log("Reverse rejected by policy.");
                 return;
             }
             _braking_system.apply_emergency_brakes();
@@ -370,10 +445,11 @@ class Car
         }
 
     private:
-        ILogger& _logger;
         IEngine& _engine;
         ITransmission& _transmission;
         ISteeringSystem& _steering_system;
         IBrakingSystem& _braking_system;
         ICarPolicy& _policy;
 };
+
+const std::string Car::class_name = "Car";
