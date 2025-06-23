@@ -1,6 +1,5 @@
 #pragma once
 #include <iostream>
-#include <sys/resource.h>
 
 // start(): starts the engine
 // stop(): stops the engine and applies the brakes
@@ -93,16 +92,22 @@ class Engine : public IEngine
 
 enum Gear { P, D, R };
 
+inline const std::string gear_to_string(Gear g)
+{
+    switch (g) { case P: return "P";
+                 case D: return "D";
+                 case R: return "R";
+                 default: return "?"; }
+}
+
 class ITransmission
 {
     public:
-        virtual void shift_gears_up() = 0;
-        virtual void shift_gears_down() = 0;
-        virtual void reverse() = 0;
-        virtual void park() = 0;
+        virtual bool to_park() = 0;
+        virtual bool to_drive() = 0;
+        virtual bool to_reverse() = 0;
         virtual bool is_in_park() const = 0;
         virtual Gear get_current_gear() const = 0;
-        virtual void set_current_gear(Gear gear) = 0;
         virtual ~ITransmission() {}
 };
 
@@ -112,54 +117,23 @@ class Transmission : public ITransmission
     public:
         Transmission(ILogger& logger) : _logger(logger) {
             _current_gear = P; // Assuming P is the initial gear (Park)
-            _logger.log("Transmission initialized in gear " + std::to_string(_current_gear) + ".");
+            _logger.log("Transmission initialized in gear " + gear_to_string(_current_gear) + ".");
         }
 
-        void shift_gears_up() {
-            if (_current_gear == P) {
-                _logger.log("Cannot shift up from Park gear.");
-                return;
-            } else if (_current_gear == D) {
-                _current_gear = P; // Set to Park
-            } else if (_current_gear == R) {
-                _logger.log("Shifting to Drive gear.");
-                _current_gear = D; // Set to Drive
-            } else {
-                _logger.log("Should not reach here. Invalid gear state.");
-            }
+        bool to_park() {
+            return _try_set(P);
         }
 
-        void shift_gears_down() {
-            if (_current_gear == P) {
-                _current_gear = D; // Set to Drive
-            }
-            else if (_current_gear == D) {
-                _logger.log("Shifting to Reverse gear.");
-                _current_gear = R; // Set to Reverse
-            } else if (_current_gear == R) {
-                _logger.log("Already in Reverse gear. Cannot shift down further.");
-            } else {
-                _logger.log("Should not reach here. Invalid gear state.");
-            }
+        bool to_drive() {
+            return _try_set(D);
         }
 
-        void reverse() {
-            _current_gear = R; // Set to Reverse
-            _logger.log("Shifting to reverse gear.");
-        }
-
-        void park() {
-            _current_gear = P; // Set to Park
-            _logger.log("Shifting to park gear.");
+        bool to_reverse() {
+            return _try_set(R);
         }
 
         Gear get_current_gear() const {
             return _current_gear;
-        }
-
-        void set_current_gear(Gear gear) {
-            _current_gear = gear;
-            _logger.log("Current gear set to " + std::to_string(_current_gear) + ".");
         }
 
         bool is_in_park() const {
@@ -169,6 +143,16 @@ class Transmission : public ITransmission
     private:
         ILogger& _logger;
         Gear _current_gear;
+    
+    private:
+        bool _try_set(Gear gear) {
+            if (gear == _current_gear) {
+                return false; // Already in the desired gear
+            }
+            _current_gear = gear;
+            _logger.log("Gear -> " + gear_to_string(_current_gear) + ".");
+            return true; // Can shift to the desired gear
+        }
 };
 
 class ISteeringSystem
@@ -255,10 +239,10 @@ class ICarPolicy
 {
     public:
         virtual bool can_start(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
-        virtual bool can_stop(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
+        virtual bool can_stop(const IEngine& engine, const ITransmission& transmission) const = 0;
         virtual bool can_accelerate(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
         virtual bool can_reverse(const ITransmission& transmission, const IBrakingSystem& braking_system) const = 0;
-        virtual ~ICarPolicy();
+        virtual ~ICarPolicy() {}
 };
 
 class DefaultCarPolicy : public ICarPolicy
@@ -277,15 +261,12 @@ class DefaultCarPolicy : public ICarPolicy
             return true; // Can start the engine
         }
 
-        bool can_stop(const IEngine& engine, const ITransmission& transmission, const IBrakingSystem& braking_system) const {
+        bool can_stop(const IEngine& engine, const ITransmission& transmission) const {
             if (!engine.is_active()) {
                 return false; // Engine must be running to stop
             }
             if (transmission.is_in_park()) {
                 return false; // Cannot stop if already in Park gear
-            }
-            if (!braking_system.is_braking()) {
-                return false; // Brakes must be applied before stopping
             }
             return true; // Can stop the engine
         }
@@ -294,7 +275,7 @@ class DefaultCarPolicy : public ICarPolicy
             if (!engine.is_active()) {
                 return false; // Engine must be running to accelerate
             }
-            if (!transmission.is_in_park()) {
+            if (transmission.is_in_park()) {
                 return false; // Transmission must be in Park gear to accelerate
             }
             if (braking_system.is_braking()) {
@@ -328,6 +309,7 @@ class Car
         }
 
         void start() {
+            _braking_system.apply_emergency_brakes(); // Ensure brakes are applied before starting
             if (!_policy.can_start(_engine, _transmission, _braking_system)) {
                 _logger.log("[Car] Start rejected by policy.");
                 return;
@@ -337,10 +319,11 @@ class Car
         }
 
         void stop() {
-            if (!_policy.can_stop(_engine, _transmission, _braking_system)) {
+            if (!_policy.can_stop(_engine, _transmission)) {
                 _logger.log("[Car] Stop rejected by policy.");
                 return;
             }
+            _braking_system.apply_emergency_brakes();
             _engine.stop();
             _logger.log("[Car] stopped and transmission set to Park.");
         }
@@ -354,16 +337,20 @@ class Car
         }
 
         void shift_gears_up() {
-            _transmission.shift_gears_up();
+            _transmission.to_park();
         }
 
         void shift_gears_down() {
-            _transmission.shift_gears_down();
+            _transmission.to_drive();
         }
 
         void reverse() {
+            if (!_policy.can_reverse(_transmission, _braking_system)) {
+                _logger.log("[Car] Reverse rejected by policy.");
+                return;
+            }
             _braking_system.apply_emergency_brakes();
-            _transmission.reverse();
+            _transmission.to_reverse();
         }
 
         void turn_wheel(int angle) {
